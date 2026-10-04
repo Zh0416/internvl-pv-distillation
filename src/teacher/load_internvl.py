@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import torch
 from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
+from transformers.modeling_utils import PreTrainedModel
 
 
 @dataclass
@@ -37,7 +38,12 @@ def load_teacher(config: dict, logger: logging.Logger) -> TeacherBundle:
     dtype = _dtype(str(model_cfg.get("dtype", "float16")))
     revision = model_cfg.get("revision", "main")
     trust_remote_code = bool(model_cfg.get("trust_remote_code", True))
-    tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision, trust_remote_code=trust_remote_code, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision, trust_remote_code=trust_remote_code,
+                                              use_fast=False, fix_mistral_regex=True)
+    if not hasattr(PreTrainedModel, "all_tied_weights_keys"):
+        PreTrainedModel.all_tied_weights_keys = property(
+            lambda model: getattr(model, "_tied_weights_keys", {})
+        )
     requested = str(model_cfg.get("quantization", "auto")).lower()
     attempts = ["8bit", "4bit", "none"] if requested == "auto" else [requested]
     last_error: Exception | None = None
