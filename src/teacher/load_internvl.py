@@ -41,8 +41,15 @@ def load_teacher(config: dict, logger: logging.Logger) -> TeacherBundle:
     tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision, trust_remote_code=trust_remote_code,
                                               use_fast=False, fix_mistral_regex=True)
     if not hasattr(PreTrainedModel, "all_tied_weights_keys"):
+        def get_tied_weights(model):
+            return getattr(model, "_all_tied_weights_keys", getattr(model, "_tied_weights_keys", {}))
+
+        def set_tied_weights(model, value):
+            model._all_tied_weights_keys = value
+
         PreTrainedModel.all_tied_weights_keys = property(
-            lambda model: getattr(model, "_tied_weights_keys", {})
+            get_tied_weights,
+            set_tied_weights,
         )
     requested = str(model_cfg.get("quantization", "auto")).lower()
     attempts = ["8bit", "4bit", "none"] if requested == "auto" else [requested]
