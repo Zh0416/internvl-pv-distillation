@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass
 
 import torch
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 
 
 @dataclass
@@ -43,11 +43,16 @@ def load_teacher(config: dict, logger: logging.Logger) -> TeacherBundle:
     last_error: Exception | None = None
     for quantization in attempts:
         kwargs = {"revision": revision, "trust_remote_code": trust_remote_code, "low_cpu_mem_usage": True,
-                  "device_map": model_cfg.get("device_map", "auto"), "torch_dtype": dtype}
+                  "device_map": model_cfg.get("device_map", "auto"), "dtype": dtype}
         if quantization == "8bit":
-            kwargs["load_in_8bit"] = True
+            kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
         elif quantization == "4bit":
-            kwargs.update(load_in_4bit=True, bnb_4bit_compute_dtype=dtype, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True)
+            kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=dtype,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+            )
         try:
             logger.info("Loading %s with quantization=%s dtype=%s", model_name, quantization, dtype)
             model = AutoModel.from_pretrained(model_name, **kwargs).eval()
