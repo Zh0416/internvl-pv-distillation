@@ -1,1 +1,70 @@
-# internvl-pv-distillation
+# InternVL PV Distillation
+
+第一阶段工程：使用 `OpenGVLab/InternVL3_5-4B` 提取高分辨率 RGB 遥感影像的视觉特征和光伏存在性语义判断，为后续 Student 蒸馏准备可恢复的 Teacher cache。
+
+当前阶段不包含 DINOv3、SAM、Student 训练、LoRA 或模型权重修改。
+
+## Kaggle运行
+
+Kaggle GPU设置为 Tesla T4，并开启 Internet。安装依赖并拉取仓库：
+
+```bash
+pip install -r requirements.txt
+git clone https://github.com/Zh0416/internvl-pv-distillation.git
+cd internvl-pv-distillation
+```
+
+数据路径支持配置中的 `/kaggle/input/datasets/zh0416/pv-dataset-2021`，也会自动识别截图所示的 `/kaggle/working/data/raw/zh0416/pv-dataset-2021`。目录下应包含 `images/` 和 `mask/` 或 `masks/`。
+
+如果模型权重已经放在 `/kaggle/working/internvl_weights`，先在Notebook中把配置里的 `model.name` 改为该本地目录；目录中应至少包含 `config.json`、模型权重文件和Tokenizer文件。这样不会再次下载权重：
+
+```python
+import yaml
+from pathlib import Path
+
+config_path = Path("configs/internvl3_5_teacher.yaml")
+config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+config["model"]["name"] = "/kaggle/working/internvl_weights"
+config["data"]["root_candidates"] = ["/kaggle/working/data"]
+config_path.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
+```
+
+```bash
+python scripts/01_check_dataset.py --config configs/internvl3_5_teacher.yaml
+python scripts/02_test_teacher.py --config configs/internvl3_5_teacher.yaml
+python scripts/03_extract_teacher_features.py --config configs/internvl3_5_teacher.yaml --max-samples 20
+```
+
+稳定后完整运行：
+
+```bash
+python scripts/03_extract_teacher_features.py --config configs/internvl3_5_teacher.yaml --max-samples None
+```
+
+脚本逐张读取、逐张保存并实时更新 `manifest.json`。已经存在且校验通过的 `.pt` 与 `.json` 会自动跳过。`04_resume_extraction.py` 是同一提取流程的显式断点续跑入口。
+
+## 输出
+
+```text
+outputs/
+├── reports/dataset_report.json
+├── splits/{train,val,test}.txt
+└── teacher_cache/
+    ├── features/<stem>.pt
+    ├── semantic/<stem>.json
+    ├── logs/{extraction.log,failed_samples.json}
+    ├── manifest.json
+    └── experiment_config.json
+```
+
+特征保存为 CPU `float16` 的完整官方 `model.extract_feature()` 输出，并记录实际 shape。语义置信度统一为 `0-1`。模型使用 Hugging Face `trust_remote_code=True`，加载时优先 8-bit，加载失败再尝试4-bit；推理OOM会记录、清理显存并按重试次数继续。
+
+打包持久化输出：
+
+```bash
+python scripts/save_teacher_cache.py --input outputs/teacher_cache --output-dir outputs/packages --part-size-gb 2
+```
+
+将生成的 `teacher_cache_part_*.tar.gz` 上传为新的 Kaggle Dataset 版本，下一次运行时挂载并解压到 `outputs/teacher_cache`，即可避免重新计算。
+
+`experiment_config.json` 记录 seed、模型名和revision、prompt、量化、dtype、GPU、图像尺寸、动态tile设置、特征shape、耗时、成功/失败数量。

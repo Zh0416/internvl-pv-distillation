@@ -1,0 +1,54 @@
+seed: 42
+model:
+  name: OpenGVLab/InternVL3_5-4B
+  revision: main
+  trust_remote_code: true
+  quantization: auto
+  dtype: float16
+  device_map: auto
+  min_dynamic_patch: 1
+  max_dynamic_patch: 6
+  use_thumbnail: true
+data:
+  root_candidates:
+    - /kaggle/input/datasets/zh0416/pv-dataset-2021
+    - /kaggle/working/data/raw/zh0416/pv-dataset-2021
+    - /kaggle/working/data
+  image_dir_name: images
+  mask_dir_names: [mask, masks]
+  image_extensions: [.bmp, .png, .jpg, .jpeg, .tif, .tiff]
+  mask_suffix: _label
+  image_size: [1024, 1024]
+split:
+  train: 0.70
+  val: 0.15
+  test: 0.15
+  group_prefix_parts: 1
+  stratify: true
+teacher:
+  prompt: |
+    请分析这张高分辨率RGB遥感影像。
+
+    任务：判断影像中是否存在光伏板（photovoltaic panels）。
+
+    请严格按照以下JSON格式回答：
+    {
+      "pv_exists": true/false,
+      "confidence": 0-100,
+      "reason": "简要描述判断依据"
+    }
+
+    要求：
+    1. 只判断当前影像是否存在光伏板。
+    2. 不要进行长篇描述。
+    3. 不要输出Markdown。
+    4. 尽量严格输出JSON。
+  max_new_tokens: 128
+  do_sample: false
+  temperature: 0.0
+  top_p: 1.0
+runtime:
+  output_dir: /kaggle/working/outputs
+  max_samples: 20
+  retry_count: 1
+  save_feature_dtype: float16
