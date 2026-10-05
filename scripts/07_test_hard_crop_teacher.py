@@ -53,14 +53,20 @@ def _run_view(
     semantic_dir: Path,
     save_feature: bool,
 ) -> dict:
+    view_config = copy.deepcopy(teacher_config)
+    prompt_key = "full_prompt" if view_type == "full_image" else "crop_prompt"
+    view_config["teacher"]["prompt"] = view_config["teacher"].get(
+        prompt_key,
+        view_config["teacher"]["prompt"],
+    )
     feature_path = None
     feature_stats = None
     if save_feature:
-        feature, feature_stats = extract_feature(bundle.model, image_path, teacher_config)
+        feature, feature_stats = extract_feature(bundle.model, image_path, view_config)
         feature_path = feature_dir / f"{view_key}.pt"
         torch.save(feature, feature_path)
         del feature
-    semantic, _ = extract_semantic(bundle, image_path, teacher_config)
+    semantic, _ = extract_semantic(bundle, image_path, view_config)
     view = {
         "view_key": view_key,
         "view_type": view_type,

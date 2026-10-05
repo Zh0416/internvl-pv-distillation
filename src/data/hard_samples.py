@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 from PIL import Image
 
+from .crops import largest_component
 from .dataset import Sample, sample_to_dict
 
 
@@ -53,18 +54,32 @@ def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[li
     excluded: list[dict] = []
     for sample in candidates:
         geometry = mask_geometry(sample.mask_path)
+        component = largest_component(sample.mask_path)
+        with Image.open(sample.mask_path) as mask:
+            width, height = mask.size
+        left, top, right, bottom = component.bbox
+        component_border_distance = min(left, top, width - right, height - bottom)
+        component_touches_border = component_border_distance == 0
+        target_component = {
+            "bbox": component.bbox,
+            "pixels": component.pixels,
+            "component_count": component.component_count,
+            "touches_border": component_touches_border,
+            "border_distance": component_border_distance,
+        }
         reason = None
         if geometry.pixels < min_pixels:
             reason = "below_min_mask_pixels"
-        elif exclude_border and geometry.touches_border:
+        elif exclude_border and component_touches_border:
             reason = "touches_tile_border"
-        elif geometry.border_distance < min_border_margin:
+        elif component_border_distance < min_border_margin:
             reason = "within_border_margin"
         if reason:
             excluded.append(
                 {
                     "sample": sample_to_dict(sample),
                     "geometry": asdict(geometry),
+                    "target_component": target_component,
                     "reason": reason,
                     "semantic_distillation_weight": 0.0,
                 }
@@ -83,7 +98,15 @@ def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[li
         "min_border_margin": min_border_margin,
         "excluded_before_selection": excluded,
         "selected": [
-            {"sample": sample_to_dict(sample), "geometry": asdict(mask_geometry(sample.mask_path))}
+            {
+                "sample": sample_to_dict(sample),
+                "geometry": asdict(mask_geometry(sample.mask_path)),
+                "target_component": {
+                    "bbox": largest_component(sample.mask_path).bbox,
+                    "pixels": largest_component(sample.mask_path).pixels,
+                    "component_count": largest_component(sample.mask_path).component_count,
+                },
+            }
             for sample in selected
         ],
     }
