@@ -26,7 +26,7 @@ def score_pv_confuser(image_path: str) -> ConfuserScore:
     horizontal = np.abs(np.diff(gray, axis=1))
     vertical = np.abs(np.diff(gray, axis=0))
     edge_fraction = float((horizontal > 24).mean() + (vertical > 24).mean()) / 2.0
-    score = 0.4 * cool_fraction + 0.35 * dark_fraction + 0.25 * edge_fraction
+    score = edge_fraction
     return ConfuserScore(
         score=float(score),
         dark_fraction=dark_fraction,
@@ -47,7 +47,7 @@ def select_challenging_negatives(samples: list[Sample], count: int) -> tuple[lis
     return [sample for sample, _ in selected], {
         "requested": count,
         "available": len(candidates),
-        "ranking": "0.40*cool_fraction + 0.35*dark_fraction + 0.25*edge_fraction",
+        "ranking": "edge_fraction descending; cool and dark fractions retained for audit",
         "selected": [
             {"sample": sample_to_dict(sample), "confuser": asdict(score)}
             for sample, score in selected

@@ -43,6 +43,21 @@ def mask_geometry(mask_path: str) -> MaskGeometry:
     )
 
 
+def target_component_geometry(mask_path: str) -> dict:
+    component = largest_component(mask_path)
+    with Image.open(mask_path) as mask:
+        width, height = mask.size
+    left, top, right, bottom = component.bbox
+    border_distance = min(left, top, width - right, height - bottom)
+    return {
+        "bbox": component.bbox,
+        "pixels": component.pixels,
+        "component_count": component.component_count,
+        "touches_border": border_distance == 0,
+        "border_distance": border_distance,
+    }
+
+
 def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[list[Sample], dict]:
     hard_cfg = config["hard_crop"]
     requested = int(config["selection"]["hard_positive_count"])
@@ -54,25 +69,13 @@ def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[li
     excluded: list[dict] = []
     for sample in candidates:
         geometry = mask_geometry(sample.mask_path)
-        component = largest_component(sample.mask_path)
-        with Image.open(sample.mask_path) as mask:
-            width, height = mask.size
-        left, top, right, bottom = component.bbox
-        component_border_distance = min(left, top, width - right, height - bottom)
-        component_touches_border = component_border_distance == 0
-        target_component = {
-            "bbox": component.bbox,
-            "pixels": component.pixels,
-            "component_count": component.component_count,
-            "touches_border": component_touches_border,
-            "border_distance": component_border_distance,
-        }
+        target_component = target_component_geometry(sample.mask_path)
         reason = None
         if geometry.pixels < min_pixels:
             reason = "below_min_mask_pixels"
-        elif exclude_border and component_touches_border:
+        elif exclude_border and target_component["touches_border"]:
             reason = "touches_tile_border"
-        elif component_border_distance < min_border_margin:
+        elif target_component["border_distance"] < min_border_margin:
             reason = "within_border_margin"
         if reason:
             excluded.append(
@@ -101,11 +104,7 @@ def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[li
             {
                 "sample": sample_to_dict(sample),
                 "geometry": asdict(mask_geometry(sample.mask_path)),
-                "target_component": {
-                    "bbox": largest_component(sample.mask_path).bbox,
-                    "pixels": largest_component(sample.mask_path).pixels,
-                    "component_count": largest_component(sample.mask_path).component_count,
-                },
+                "target_component": target_component_geometry(sample.mask_path),
             }
             for sample in selected
         ],
