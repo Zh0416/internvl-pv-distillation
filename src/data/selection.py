@@ -18,7 +18,7 @@ def _take_evenly(items: list[Sample], count: int) -> list[Sample]:
         return []
     if count >= len(items):
         return list(items)
-    indexes = np.linspace(0, len(items) - 1, num=count, dtype=int)
+    indexes = np.linspace(0, len(items) - 1, num=count + 2, dtype=int)[1:-1]
     return [items[index] for index in indexes]
 
 
