@@ -110,3 +110,5 @@ python scripts/save_teacher_cache.py --input outputs/teacher_cache --output-dir 
 困难小目标使用 `configs/kaggle_pv_hard_crop_distill.yaml` 和 `scripts/07_test_hard_crop_teacher.py`。训练阶段依据已有分割掩膜生成局部放大 crop，保存 InternVL 局部特征、语义概率和原图坐标；这些是蒸馏训练用的 oracle crop，不代表部署时可以获得掩膜。部署时 Student 仍需在整图上进行密集预测。
 
 数据质量规则会排除小于 128 像素或接触 512×512 图块边界的正样本进入语义蒸馏，并把它们记录为 `semantic_distillation_weight=0`。这类样本通常是切片产生的截断标签，不能当作 InternVL 应该从整图识别出的完整目标；像素级训练可另行使用 ignore mask 处理。
+
+有效困难目标使用至少 96×96 的正方形 crop，并按目标包围盒较长边的 2 倍保留上下文，再由 InternVL 放大到 448 输入。这样既保留道路、屋顶等负上下文，也避免 crop 重新退化成 512×512 整图。

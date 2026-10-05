@@ -40,7 +40,7 @@ selection:
   regular_positive_count: 0
 hard_crop:
   min_crop_size: 96
-  context_scale: 8.0
+  context_scale: 2.0
   negative_view_count: 3
   teacher_input_size: 448
   min_mask_pixels: 128
