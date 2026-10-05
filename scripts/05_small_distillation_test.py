@@ -15,7 +15,14 @@ from src.utils.logger import setup_logger
 from src.utils.metrics import binary_classification_metrics
 
 
-def _run_sample(sample, bundle, config: dict, features_dir: Path, semantic_dir: Path) -> dict:
+def _run_sample(
+    sample,
+    selection_group: str,
+    bundle,
+    config: dict,
+    features_dir: Path,
+    semantic_dir: Path,
+) -> dict:
     from src.teacher.feature_extractor import extract_feature
     from src.teacher.semantic_extractor import extract_semantic
 
@@ -27,6 +34,7 @@ def _run_sample(sample, bundle, config: dict, features_dir: Path, semantic_dir: 
     torch.save(feature, feature_path)
     result = {
         "sample": sample_to_dict(sample),
+        "selection_group": selection_group,
         "ground_truth": sample.is_positive,
         "prediction": bool(semantic["pv_exists"]),
         "correct": bool(semantic["pv_exists"]) == sample.is_positive,
@@ -112,12 +120,22 @@ def main() -> None:
 
     logger.info("GPU before load: %s", gpu_memory())
     bundle = load_teacher(config, logger)
+    selection_group_by_key = {
+        item["cache_key"]: item["selection_group"] for item in selection["selected"]
+    }
     results: list[dict] = []
     failures: list[dict] = []
     started = time.perf_counter()
     for index, sample in enumerate(selected, 1):
         try:
-            result = _run_sample(sample, bundle, config, features_dir, semantic_dir)
+            result = _run_sample(
+                sample,
+                selection_group_by_key[sample.cache_key],
+                bundle,
+                config,
+                features_dir,
+                semantic_dir,
+            )
             results.append(result)
             logger.info(
                 "[%d/%d] %s truth=%s prediction=%s confidence=%.3f",
@@ -152,6 +170,13 @@ def main() -> None:
         [result["ground_truth"] for result in results],
         [result["prediction"] for result in results],
     )
+    metrics_by_group = {}
+    for group in sorted({result["selection_group"] for result in results}):
+        group_results = [result for result in results if result["selection_group"] == group]
+        metrics_by_group[group] = binary_classification_metrics(
+            [result["ground_truth"] for result in group_results],
+            [result["prediction"] for result in group_results],
+        )
     single_test = results[0]
     report = {
         "created_at": utc_now(),
@@ -174,6 +199,7 @@ def main() -> None:
         },
         "selection": selection,
         "metrics": metrics,
+        "metrics_by_group": metrics_by_group,
         "single_test": single_test,
         "samples": results,
         "failures": failures,

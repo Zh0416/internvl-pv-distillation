@@ -75,6 +75,10 @@ class DataAndMetricsTest(unittest.TestCase):
         selected, manifest = select_distillation_subset(samples, self.config)
         self.assertEqual(len(selected), 6)
         self.assertEqual(manifest["available"]["labeled_negatives"], 1)
+        self.assertEqual(
+            manifest["selected_by_group"],
+            {"negative": 2, "hard_negative": 1, "hard_positive": 1, "regular_positive": 2},
+        )
         splits = create_splits(samples, self.config)
         self.assertEqual(sum(len(items) for items in splits.values()), 8)
         self.assertTrue(any(sample.is_positive for sample in splits["train"]))

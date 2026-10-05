@@ -104,3 +104,5 @@ python scripts/save_teacher_cache.py --input outputs/teacher_cache --output-dir 
 将生成的 `teacher_cache_part_*.tar.gz` 上传为新的 Kaggle Dataset 版本，下一次运行时挂载并解压到 `outputs/teacher_cache`，即可避免重新计算。
 
 `experiment_config.json` 记录 seed、模型名和revision、prompt、量化、dtype、GPU、图像尺寸、动态tile设置、特征shape、耗时、成功/失败数量。
+
+50 张分组验证使用 `configs/kaggle_pv_50_distill.yaml`：20 张常规正样本、15 张最小非空掩膜困难正样本和 15 张 `PV100F` 负样本。报告同时输出总体指标和 `metrics_by_group` 分组指标。

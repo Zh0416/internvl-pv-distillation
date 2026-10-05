@@ -38,12 +38,22 @@ def select_distillation_subset(samples: list[Sample], config: dict) -> tuple[lis
         regular_candidates,
         int(selection_cfg.get("regular_positive_count", 2)),
     )
-    selected = (
-        _take_random(synthetic_negatives, int(selection_cfg.get("negative_count", 2)), rng)
-        + _take_random(labeled_negatives, int(selection_cfg.get("hard_negative_count", 1)), rng)
-        + hard_positives
-        + regular_positives
-    )
+    grouped_samples = {
+        "negative": _take_random(synthetic_negatives, int(selection_cfg.get("negative_count", 2)), rng),
+        "hard_negative": _take_random(
+            labeled_negatives,
+            int(selection_cfg.get("hard_negative_count", 1)),
+            rng,
+        ),
+        "hard_positive": hard_positives,
+        "regular_positive": regular_positives,
+    }
+    selection_group_by_key = {
+        sample.cache_key: group
+        for group, group_samples in grouped_samples.items()
+        for sample in group_samples
+    }
+    selected = [sample for group_samples in grouped_samples.values() for sample in group_samples]
     rng.shuffle(selected)
     manifest = {
         "requested": {
@@ -58,6 +68,10 @@ def select_distillation_subset(samples: list[Sample], config: dict) -> tuple[lis
             "positives": len(positives),
         },
         "selected_count": len(selected),
-        "selected": [sample_to_dict(sample) for sample in selected],
+        "selected_by_group": {group: len(group_samples) for group, group_samples in grouped_samples.items()},
+        "selected": [
+            {**sample_to_dict(sample), "selection_group": selection_group_by_key[sample.cache_key]}
+            for sample in selected
+        ],
     }
     return selected, manifest
