@@ -41,8 +41,8 @@ def run(config: dict, max_samples: int | None) -> None:
     selected = samples if max_samples is None else samples[:max_samples]
     manifest_path = cache / "manifest.json"; failed_path = logs_dir / "failed_samples.json"
     failed = load_json(failed_path, [])
-    complete_names = {sample.stem for sample in samples if _complete(features_dir / f"{sample.stem}.pt", semantic_dir / f"{sample.stem}.json")}
-    failed = [item for item in failed if Path(item.get("filename", "")).stem not in complete_names]
+    complete_names = {sample.cache_key for sample in samples if _complete(features_dir / f"{sample.cache_key}.pt", semantic_dir / f"{sample.cache_key}.json")}
+    failed = [item for item in failed if item.get("cache_key", Path(item.get("filename", "")).stem) not in complete_names]
     manifest = load_json(manifest_path, {"total": len(samples), "success": 0, "failed": 0, "skipped": 0, "remaining": len(samples), "updated_at": utc_now()})
     manifest.update({"total": len(samples), "success": len(complete_names), "failed": len({item.get("filename") for item in failed}),
                     "skipped": 0, "run_started_at": utc_now(), "config_hash": config_hash(config)})
@@ -50,7 +50,7 @@ def run(config: dict, max_samples: int | None) -> None:
     bundle = load_teacher(config, logger)
     times = []; run_success = run_failed = run_skipped = 0; started = time.perf_counter()
     for index, sample in enumerate(selected, 1):
-        feature_path = features_dir / f"{sample.stem}.pt"; semantic_path = semantic_dir / f"{sample.stem}.json"
+        feature_path = features_dir / f"{sample.cache_key}.pt"; semantic_path = semantic_dir / f"{sample.cache_key}.json"
         if _complete(feature_path, semantic_path):
             run_skipped += 1
             manifest["skipped"] = manifest.get("skipped", 0) + 1
@@ -65,7 +65,8 @@ def run(config: dict, max_samples: int | None) -> None:
                 feature, feature_stats = extract_feature(bundle.model, sample.image_path, config)
                 semantic, _ = extract_semantic(bundle, sample.image_path, config)
                 torch.save(feature, feature_path)
-                atomic_json_dump({"filename": sample.filename, "feature": feature_stats, "semantic": semantic,
+                atomic_json_dump({"filename": sample.filename, "cache_key": sample.cache_key,
+                                  "source": sample.source, "feature": feature_stats, "semantic": semantic,
                                   "saved_at": utc_now(), "config_hash": config_hash(config)}, semantic_path)
                 manifest["feature_shape"] = feature_stats["shape"]
                 times.append(time.perf_counter() - image_started); run_success += 1; success = True
@@ -78,7 +79,9 @@ def run(config: dict, max_samples: int | None) -> None:
                     gc.collect()
                     if torch.cuda.is_available(): torch.cuda.empty_cache()
                     continue
-                failed.append({"filename": sample.filename, "error_type": _error_type(exc), "error_message": str(exc), "timestamp": utc_now()})
+                failed.append({"filename": sample.filename, "cache_key": sample.cache_key,
+                               "source": sample.source, "error_type": _error_type(exc),
+                               "error_message": str(exc), "timestamp": utc_now()})
                 run_failed += 1; logger.exception("Failed %s", sample.filename)
         manifest.update({"success": manifest.get("success", 0) + (1 if success else 0),
                          "failed": manifest.get("failed", 0) + (0 if success else 1)})

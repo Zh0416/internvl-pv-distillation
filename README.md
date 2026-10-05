@@ -4,6 +4,31 @@
 
 当前阶段不包含 DINOv3、SAM、Student 训练、LoRA 或模型权重修改。
 
+## PV100F + PV4026 小样本蒸馏验证
+
+`configs/kaggle_pv_small_distill.yaml` 同时支持 Kaggle 上的两个输入：
+
+- `zh0416/pv100f`：仅包含负样本影像，加载器会在内存中生成全零图像级标签，不修改数据集。
+- `zh0416/pv4026`：包含 `512×512` RGB TIFF 影像和同名的单通道 TIFF 标签。
+
+先只检查格式和确定性抽样，不加载模型：
+
+```bash
+python scripts/05_small_distillation_test.py \
+  --config configs/kaggle_pv_small_distill.yaml \
+  --selection-only
+```
+
+再提取少量 Teacher 特征并验证图像级光伏存在性：
+
+```bash
+python scripts/05_small_distillation_test.py \
+  --config configs/kaggle_pv_small_distill.yaml
+```
+
+默认抽取 2 个 `PV100F` 负样本、最多 1 个 `PV4026` 空掩膜困难负样本、2 个最小非空掩膜困难正样本和 2 个覆盖面积分位点正样本。报告保存到
+`/kaggle/working/outputs/reports/small_distillation_report.json`，包含 Precision、Recall、F1/Dice 和 IoU。这里的指标衡量 Teacher 的图像级光伏存在性判断，不是像素级分割指标；当前阶段只生成蒸馏缓存，不训练 Student。
+
 ## Kaggle运行
 
 Kaggle GPU设置为 Tesla T4，并开启 Internet。安装依赖并拉取仓库：

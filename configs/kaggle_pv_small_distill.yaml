@@ -1,0 +1,61 @@
+seed: 42
+model:
+  name: OpenGVLab/InternVL3_5-4B
+  revision: main
+  trust_remote_code: true
+  quantization: auto
+  dtype: float16
+  device_map: auto
+  min_dynamic_patch: 1
+  max_dynamic_patch: 4
+  use_thumbnail: true
+data:
+  sources:
+    - name: pv4026
+      role: labeled
+      root_candidates:
+        - /kaggle/input/pv4026
+        - /kaggle/input/datasets/zh0416/pv4026
+      image_dir_name: images
+      mask_dir_names: [labels, mask, masks]
+      mask_suffixes: ["", _label]
+    - name: pv100f
+      role: negative
+      root_candidates:
+        - /kaggle/input/pv100f
+        - /kaggle/input/datasets/zh0416/pv100f
+      image_dir_name: images
+  image_extensions: [.bmp, .png, .jpg, .jpeg, .tif, .tiff]
+  image_size: [512, 512]
+split:
+  train: 0.70
+  val: 0.15
+  test: 0.15
+  group_prefix_parts: 1
+  stratify: true
+selection:
+  negative_count: 2
+  hard_negative_count: 1
+  hard_positive_count: 2
+  regular_positive_count: 2
+teacher:
+  prompt: |
+    你是一名遥感光伏识别专家。请判断这张512×512 RGB遥感影像中是否存在光伏板。
+
+    光伏板通常表现为成片、规则、密集排列的深蓝色或灰蓝色矩形阵列。不要把普通农田、道路、
+    水体、屋顶阴影或颜色相近但缺乏规则阵列结构的目标误判为光伏板。小目标也需要仔细检查。
+
+    只输出严格JSON，不要使用Markdown：
+    {
+      "pv_exists": true/false,
+      "confidence": 0-100,
+      "reason": "简要说明关键视觉依据"
+    }
+  max_new_tokens: 128
+  do_sample: false
+  temperature: 0.0
+  top_p: 1.0
+runtime:
+  output_dir: /kaggle/working/outputs
+  retry_count: 1
+  save_feature_dtype: float16

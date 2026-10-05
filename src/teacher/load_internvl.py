@@ -42,7 +42,11 @@ def load_teacher(config: dict, logger: logging.Logger) -> TeacherBundle:
                                               use_fast=False, fix_mistral_regex=True)
     if not hasattr(PreTrainedModel, "all_tied_weights_keys"):
         def get_tied_weights(model):
-            return getattr(model, "_all_tied_weights_keys", getattr(model, "_tied_weights_keys", {}))
+            return (
+                getattr(model, "_all_tied_weights_keys", None)
+                or getattr(model, "_tied_weights_keys", None)
+                or {}
+            )
 
         def set_tied_weights(model, value):
             model._all_tied_weights_keys = value
@@ -71,7 +75,7 @@ def load_teacher(config: dict, logger: logging.Logger) -> TeacherBundle:
             model = AutoModel.from_pretrained(model_name, **kwargs).eval()
             logger.info("Teacher loaded; GPU memory: %s", gpu_memory())
             return TeacherBundle(model=model, tokenizer=tokenizer, dtype=dtype, quantization=quantization)
-        except (RuntimeError, ValueError, ImportError, OSError) as exc:
+        except (RuntimeError, ValueError, ImportError, OSError, AttributeError) as exc:
             last_error = exc
             logger.exception("Teacher load failed with %s", quantization)
             gc.collect()

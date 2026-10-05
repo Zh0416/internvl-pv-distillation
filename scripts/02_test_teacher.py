@@ -16,15 +16,22 @@ from src.utils.logger import setup_logger
 
 def main() -> None:
     parser = argparse.ArgumentParser(); parser.add_argument("--config", default="configs/internvl3_5_teacher.yaml")
+    parser.add_argument("--cache-key", default=None)
     args = parser.parse_args(); config = load_config(args.config); seed_everything(int(config["seed"]))
     cache = Path(config["runtime"]["output_dir"]) / "teacher_cache"; logger = setup_logger(cache / "logs" / "extraction.log", "teacher_test")
     _, samples, _ = inspect_dataset(config)
     if not samples:
         raise RuntimeError("没有可测试的有效影像")
+    sample = samples[0]
+    if args.cache_key:
+        sample = next((item for item in samples if item.cache_key == args.cache_key), None)
+        if sample is None:
+            raise ValueError(f"未找到cache_key={args.cache_key}")
     logger.info("GPU before load: %s", gpu_memory()); bundle = load_teacher(config, logger)
-    started = time.perf_counter(); feature, feature_stats = extract_feature(bundle.model, samples[0].image_path, config)
-    semantic, semantic_time = extract_semantic(bundle, samples[0].image_path, config)
-    result = {"filename": samples[0].filename, "feature": feature_stats, "semantic": semantic,
+    started = time.perf_counter(); feature, feature_stats = extract_feature(bundle.model, sample.image_path, config)
+    semantic, semantic_time = extract_semantic(bundle, sample.image_path, config)
+    result = {"filename": sample.filename, "cache_key": sample.cache_key, "source": sample.source,
+              "ground_truth": sample.is_positive, "feature": feature_stats, "semantic": semantic,
               "model": config["model"], "quantization": bundle.quantization, "gpu": gpu_memory(),
               "total_elapsed_seconds": time.perf_counter() - started}
     dump_json(result, cache / "single_test.json")

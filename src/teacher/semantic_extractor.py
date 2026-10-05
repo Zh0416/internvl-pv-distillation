@@ -26,8 +26,16 @@ def parse_semantic_response(raw: str) -> dict:
     confidence = float(value.get("confidence", 0.0))
     if confidence > 1.0:
         confidence /= 100.0
-    return {"pv_exists": bool(value.get("pv_exists", False)), "confidence": max(0.0, min(1.0, confidence)),
-            "reason": str(value.get("reason", "")), "raw_output": raw}
+    raw_exists = value.get("pv_exists", False)
+    if isinstance(raw_exists, str):
+        pv_exists = raw_exists.strip().lower() in {"true", "1", "yes", "是"}
+    else:
+        pv_exists = bool(raw_exists)
+    result = {"pv_exists": pv_exists, "confidence": max(0.0, min(1.0, confidence)),
+              "reason": str(value.get("reason", "")), "raw_output": raw}
+    if value.get("parse_warning"):
+        result["parse_warning"] = value["parse_warning"]
+    return result
 
 
 @torch.inference_mode()
