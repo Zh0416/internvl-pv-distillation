@@ -17,6 +17,7 @@ from src.data.crops import (
     square_crop_box,
 )
 from src.data.dataset import inspect_dataset, sample_to_dict
+from src.data.hard_samples import select_valid_hard_positives
 from src.data.selection import select_distillation_subset
 from src.teacher.feature_extractor import extract_feature
 from src.teacher.load_internvl import gpu_memory, load_teacher
@@ -65,8 +66,10 @@ def main() -> None:
         directory.mkdir(parents=True, exist_ok=True)
 
     _, samples, dataset_report = inspect_dataset(config)
-    selected, selection = select_distillation_subset(samples, config)
-    selected = [sample for sample in selected if sample.label_origin.startswith("synthetic") or sample.is_positive]
+    general_selected, general_selection = select_distillation_subset(samples, config)
+    negative_samples = [sample for sample in general_selected if sample.label_origin.startswith("synthetic")]
+    hard_samples, hard_selection = select_valid_hard_positives(samples, config)
+    selected = negative_samples + hard_samples
     logger = setup_logger(log_dir / "hard_crop_teacher.log", "hard_crop_teacher")
     logger.info("GPU before load: %s", gpu_memory())
     bundle = load_teacher(config, logger)
@@ -191,7 +194,7 @@ def main() -> None:
             "dtype_used": str(bundle.dtype),
         },
         "dataset_summary": dataset_report,
-        "selection": selection,
+        "selection": {"negative": general_selection, "hard_positive": hard_selection},
         "metrics": metrics,
         "metrics_by_label": metrics_by_label,
         "results": results,

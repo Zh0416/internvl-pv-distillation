@@ -43,6 +43,8 @@ hard_crop:
   context_scale: 8.0
   negative_view_count: 3
   teacher_input_size: 448
+  min_mask_pixels: 128
+  exclude_border_touching: true
 teacher:
   prompt: |
     你是一名遥感光伏识别专家。这是从512×512遥感影像中放大的局部区域。

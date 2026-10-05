@@ -9,6 +9,7 @@ from PIL import Image
 
 from src.data.dataset import inspect_dataset
 from src.data.crops import fixed_negative_crop_boxes, largest_component, square_crop_box
+from src.data.hard_samples import mask_geometry
 from src.data.selection import select_distillation_subset
 from src.data.split_dataset import create_splits
 from src.teacher.semantic_extractor import parse_semantic_response
@@ -102,9 +103,12 @@ class DataAndMetricsTest(unittest.TestCase):
         mask_path = Path(self.temp_dir.name) / "component.tif"
         Image.fromarray(mask).save(mask_path)
         component = largest_component(mask_path)
+        geometry = mask_geometry(str(mask_path))
         self.assertEqual(component.pixels, 6)
         self.assertEqual(component.component_count, 2)
         self.assertEqual(component.bbox, (4, 3, 7, 5))
+        self.assertFalse(geometry.touches_border)
+        self.assertEqual(geometry.bbox, (4, 3, 21, 21))
         self.assertEqual(square_crop_box((32, 32), component.bbox, 16, 4.0), (0, 0, 16, 16))
         self.assertEqual(len(fixed_negative_crop_boxes((32, 32), 16, 3)), 3)
 

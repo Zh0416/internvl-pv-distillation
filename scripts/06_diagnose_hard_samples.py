@@ -8,7 +8,7 @@ from PIL import Image
 from common import dump_json, load_config, seed_everything
 from src.data.crops import largest_component, save_diagnostic_panel, square_crop_box
 from src.data.dataset import inspect_dataset
-from src.data.selection import select_distillation_subset
+from src.data.hard_samples import select_valid_hard_positives
 
 
 def _apply_overrides(config: dict, values: list[str], output_dir: str | None) -> None:
@@ -37,8 +37,7 @@ def main() -> None:
     seed_everything(int(config["seed"]))
 
     _, samples, _ = inspect_dataset(config)
-    selected, _ = select_distillation_subset(samples, config)
-    hard_samples = [sample for sample in selected if sample.is_positive]
+    hard_samples, selection_report = select_valid_hard_positives(samples, config)
     output_dir = Path(config["runtime"]["output_dir"]) / "reports" / "hard_sample_diagnostics"
     rows = []
     for sample in hard_samples:
@@ -68,7 +67,7 @@ def main() -> None:
             }
         )
     report_path = output_dir.parent / "hard_sample_diagnostics.json"
-    dump_json({"count": len(rows), "samples": rows}, report_path)
+    dump_json({"count": len(rows), "selection": selection_report, "samples": rows}, report_path)
     print(f"Hard samples: {len(rows)}")
     print(f"Report: {report_path}")
 
