@@ -10,15 +10,15 @@ import torch
 from common import dump_json, load_config, seed_everything
 from src.data.dataset import config_hash, inspect_dataset, sample_to_dict
 from src.data.selection import select_distillation_subset
-from src.teacher.feature_extractor import extract_feature
-from src.teacher.load_internvl import gpu_memory, load_teacher
-from src.teacher.semantic_extractor import extract_semantic
 from src.utils.checkpoint import atomic_json_dump, utc_now
 from src.utils.logger import setup_logger
 from src.utils.metrics import binary_classification_metrics
 
 
 def _run_sample(sample, bundle, config: dict, features_dir: Path, semantic_dir: Path) -> dict:
+    from src.teacher.feature_extractor import extract_feature
+    from src.teacher.semantic_extractor import extract_semantic
+
     started = time.perf_counter()
     feature, feature_stats = extract_feature(bundle.model, sample.image_path, config)
     semantic, _ = extract_semantic(bundle, sample.image_path, config)
@@ -107,6 +107,8 @@ def main() -> None:
     if args.selection_only:
         print(f"Selection manifest: {reports_dir / 'selection_manifest.json'}")
         return
+
+    from src.teacher.load_internvl import gpu_memory, load_teacher
 
     logger.info("GPU before load: %s", gpu_memory())
     bundle = load_teacher(config, logger)
