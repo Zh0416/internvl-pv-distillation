@@ -1,0 +1,19 @@
+{
+  "id": "zh0416/notebook5b148ab676",
+  "title": "notebook5b148ab676",
+  "code_file": "notebook5b148ab676.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "keywords": ["distillation", "photovoltaic", "internvl"],
+  "dataset_sources": [
+    "zh0416/pv100f",
+    "zh0416/pv4026"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": []
+}
