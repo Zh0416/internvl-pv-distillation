@@ -1,0 +1,67 @@
+seed: 42
+model:
+  name: OpenGVLab/InternVL3_5-4B
+  revision: main
+  trust_remote_code: true
+  quantization: auto
+  dtype: float16
+  device_map: auto
+  min_dynamic_patch: 1
+  max_dynamic_patch: 4
+  use_thumbnail: true
+data:
+  sources:
+    - name: pv4026
+      role: labeled
+      root_candidates:
+        - /kaggle/input/pv4026
+        - /kaggle/input/datasets/zh0416/pv4026
+      image_dir_name: images
+      mask_dir_names: [labels, mask, masks]
+      mask_suffixes: ["", _label]
+    - name: pv100f
+      role: negative
+      root_candidates:
+        - /kaggle/input/pv100f
+        - /kaggle/input/datasets/zh0416/pv100f
+      image_dir_name: images
+  image_extensions: [.bmp, .png, .jpg, .jpeg, .tif, .tiff]
+  image_size: [512, 512]
+split:
+  train: 0.70
+  val: 0.15
+  test: 0.15
+  group_prefix_parts: 1
+  stratify: true
+selection:
+  negative_count: 15
+  hard_negative_count: 0
+  hard_positive_count: 15
+  regular_positive_count: 0
+hard_crop:
+  min_crop_size: 96
+  context_scale: 8.0
+  negative_view_count: 3
+  teacher_input_size: 448
+teacher:
+  prompt: |
+    你是一名遥感光伏识别专家。这是从512×512遥感影像中放大的局部区域。
+
+    请判断局部区域内是否存在光伏板。即使只出现一个或少量很小的深蓝色、灰蓝色规则矩形板片，
+    只要具有人工直边、重复纹理或规则排列，也应判断为存在。不要要求它必须形成大型光伏电站。
+    不要把道路、屋顶阴影、水体、车辆或普通农田纹理误判为光伏板。
+
+    只输出严格JSON，不要使用Markdown：
+    {
+      "pv_exists": true/false,
+      "confidence": 0-100,
+      "reason": "简要说明局部视觉依据"
+    }
+  max_new_tokens: 128
+  do_sample: false
+  temperature: 0.0
+  top_p: 1.0
+runtime:
+  output_dir: /kaggle/working/outputs
+  retry_count: 1
+  save_feature_dtype: float16

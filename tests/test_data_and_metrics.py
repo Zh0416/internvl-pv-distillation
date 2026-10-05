@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 
 from src.data.dataset import inspect_dataset
+from src.data.crops import fixed_negative_crop_boxes, largest_component, square_crop_box
 from src.data.selection import select_distillation_subset
 from src.data.split_dataset import create_splits
 from src.teacher.semantic_extractor import parse_semantic_response
@@ -93,6 +94,19 @@ class DataAndMetricsTest(unittest.TestCase):
         parsed = parse_semantic_response('{"pv_exists": "false", "confidence": 80, "reason": "none"}')
         self.assertFalse(parsed["pv_exists"])
         self.assertEqual(parsed["confidence"], 0.8)
+
+    def test_hard_crop_geometry(self) -> None:
+        mask = np.zeros((32, 32), dtype=np.uint8)
+        mask[3:5, 4:7] = 255
+        mask[20, 20] = 255
+        mask_path = Path(self.temp_dir.name) / "component.tif"
+        Image.fromarray(mask).save(mask_path)
+        component = largest_component(mask_path)
+        self.assertEqual(component.pixels, 6)
+        self.assertEqual(component.component_count, 2)
+        self.assertEqual(component.bbox, (4, 3, 7, 5))
+        self.assertEqual(square_crop_box((32, 32), component.bbox, 16, 4.0), (0, 0, 16, 16))
+        self.assertEqual(len(fixed_negative_crop_boxes((32, 32), 16, 3)), 3)
 
 
 if __name__ == "__main__":

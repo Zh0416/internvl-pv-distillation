@@ -106,3 +106,5 @@ python scripts/save_teacher_cache.py --input outputs/teacher_cache --output-dir 
 `experiment_config.json` 记录 seed、模型名和revision、prompt、量化、dtype、GPU、图像尺寸、动态tile设置、特征shape、耗时、成功/失败数量。
 
 50 张分组验证使用 `configs/kaggle_pv_50_distill.yaml`：20 张常规正样本、15 张最小非空掩膜困难正样本和 15 张 `PV100F` 负样本。报告同时输出总体指标和 `metrics_by_group` 分组指标。
+
+困难小目标使用 `configs/kaggle_pv_hard_crop_distill.yaml` 和 `scripts/07_test_hard_crop_teacher.py`。训练阶段依据已有分割掩膜生成局部放大 crop，保存 InternVL 局部特征、语义概率和原图坐标；这些是蒸馏训练用的 oracle crop，不代表部署时可以获得掩膜。部署时 Student 仍需在整图上进行密集预测。
