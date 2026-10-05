@@ -9,6 +9,7 @@ from PIL import Image
 
 from src.data.dataset import inspect_dataset
 from src.data.crops import fixed_negative_crop_boxes, largest_component, square_crop_box
+from src.data.confusers import score_pv_confuser, select_challenging_negatives
 from src.data.hard_samples import mask_geometry
 from src.data.selection import select_distillation_subset
 from src.data.split_dataset import create_splits
@@ -108,9 +109,19 @@ class DataAndMetricsTest(unittest.TestCase):
         self.assertEqual(component.component_count, 2)
         self.assertEqual(component.bbox, (4, 3, 7, 5))
         self.assertFalse(geometry.touches_border)
+        self.assertEqual(geometry.border_distance, 3)
         self.assertEqual(geometry.bbox, (4, 3, 21, 21))
         self.assertEqual(square_crop_box((32, 32), component.bbox, 16, 4.0), (0, 0, 16, 16))
         self.assertEqual(len(fixed_negative_crop_boxes((32, 32), 16, 3)), 3)
+
+    def test_confuser_ranking(self) -> None:
+        _, samples, _ = inspect_dataset(self.config)
+        negatives = [sample for sample in samples if sample.label_origin.startswith("synthetic")]
+        score = score_pv_confuser(negatives[0].image_path)
+        self.assertGreaterEqual(score.score, 0.0)
+        selected, report = select_challenging_negatives(samples, 2)
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(report["requested"], 2)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ class MaskGeometry:
     pixels: int
     bbox: tuple[int, int, int, int]
     touches_border: bool
+    border_distance: int
     bbox_width: int
     bbox_height: int
 
@@ -30,10 +31,12 @@ def mask_geometry(mask_path: str) -> MaskGeometry:
     bottom, right = (coordinates.max(axis=0) + 1).tolist()
     height, width = foreground.shape
     touches_border = left == 0 or top == 0 or right == width or bottom == height
+    border_distance = min(left, top, width - right, height - bottom)
     return MaskGeometry(
         pixels=int(foreground.sum()),
         bbox=(int(left), int(top), int(right), int(bottom)),
         touches_border=touches_border,
+        border_distance=int(border_distance),
         bbox_width=int(right - left),
         bbox_height=int(bottom - top),
     )
@@ -44,6 +47,7 @@ def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[li
     requested = int(config["selection"]["hard_positive_count"])
     min_pixels = int(hard_cfg.get("min_mask_pixels", 128))
     exclude_border = bool(hard_cfg.get("exclude_border_touching", True))
+    min_border_margin = int(hard_cfg.get("min_border_margin", 0))
     candidates = sorted((sample for sample in samples if sample.is_positive), key=lambda sample: sample.pv_pixels)
     selected: list[Sample] = []
     excluded: list[dict] = []
@@ -54,6 +58,8 @@ def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[li
             reason = "below_min_mask_pixels"
         elif exclude_border and geometry.touches_border:
             reason = "touches_tile_border"
+        elif geometry.border_distance < min_border_margin:
+            reason = "within_border_margin"
         if reason:
             excluded.append(
                 {
@@ -74,6 +80,7 @@ def select_valid_hard_positives(samples: list[Sample], config: dict) -> tuple[li
         "selected_count": len(selected),
         "min_mask_pixels": min_pixels,
         "exclude_border_touching": exclude_border,
+        "min_border_margin": min_border_margin,
         "excluded_before_selection": excluded,
         "selected": [
             {"sample": sample_to_dict(sample), "geometry": asdict(mask_geometry(sample.mask_path))}
