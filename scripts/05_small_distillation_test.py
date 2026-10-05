@@ -47,9 +47,37 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/kaggle_pv_small_distill.yaml")
     parser.add_argument("--selection-only", action="store_true")
+    parser.add_argument(
+        "--source-root",
+        action="append",
+        default=[],
+        metavar="NAME=ABSOLUTE_PATH",
+        help="覆盖指定数据源根目录，可重复使用",
+    )
+    parser.add_argument("--output-dir", default=None)
     args = parser.parse_args()
 
     config = load_config(args.config)
+    source_overrides = {}
+    for value in args.source_root:
+        if "=" not in value:
+            raise ValueError(f"--source-root格式必须是NAME=ABSOLUTE_PATH，实际为: {value}")
+        name, root = value.split("=", 1)
+        root_path = Path(root)
+        if not root_path.is_absolute():
+            raise ValueError(f"数据源路径必须是绝对路径: {root}")
+        source_overrides[name] = str(root_path)
+    configured_sources = {source["name"]: source for source in config["data"].get("sources", [])}
+    unknown_sources = sorted(set(source_overrides) - set(configured_sources))
+    if unknown_sources:
+        raise ValueError(f"未知数据源: {unknown_sources}")
+    for name, root in source_overrides.items():
+        configured_sources[name]["root_candidates"] = [root]
+    if args.output_dir:
+        output_path = Path(args.output_dir)
+        if not output_path.is_absolute():
+            raise ValueError(f"输出路径必须是绝对路径: {args.output_dir}")
+        config["runtime"]["output_dir"] = str(output_path)
     seed_everything(int(config["seed"]))
     output_dir = Path(config["runtime"]["output_dir"])
     reports_dir = output_dir / "reports"

@@ -19,6 +19,17 @@ python scripts/05_small_distillation_test.py \
   --selection-only
 ```
 
+本地只读复现时可用绝对路径覆盖数据源，输出必须写入新目录：
+
+```bash
+python scripts/05_small_distillation_test.py \
+  --config configs/kaggle_pv_small_distill.yaml \
+  --source-root pv4026=C:/absolute/path/to/pv4026 \
+  --source-root pv100f=C:/absolute/path/to/pv100f \
+  --output-dir C:/absolute/path/to/new-output \
+  --selection-only
+```
+
 再提取少量 Teacher 特征并验证图像级光伏存在性：
 
 ```bash
