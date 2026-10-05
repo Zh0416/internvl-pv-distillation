@@ -13,7 +13,7 @@ from src.data.confusers import select_challenging_negatives
 from src.data.crops import crop_metadata_to_dict, fixed_negative_crop_boxes, largest_component, save_crop, square_crop_box
 from src.data.dataset import inspect_dataset, sample_to_dict
 from src.data.hard_samples import select_valid_hard_positives
-from src.data.selection import select_distillation_subset
+from src.data.selection import select_regular_positives
 from src.teacher.feature_extractor import extract_feature
 from src.teacher.load_internvl import gpu_memory, load_teacher
 from src.teacher.semantic_extractor import extract_semantic
@@ -110,13 +110,13 @@ def main() -> None:
         directory.mkdir(parents=True, exist_ok=True)
 
     _, samples, dataset_report = inspect_dataset(config)
-    general_selected, general_selection = select_distillation_subset(samples, config)
-    selected_groups = {
-        row["cache_key"]: row["selection_group"]
-        for row in general_selection["selected"]
-    }
-    regular_samples = [sample for sample in general_selected if selected_groups[sample.cache_key] == "regular_positive"]
     hard_samples, hard_selection = select_valid_hard_positives(samples, config)
+    hard_keys = {sample.cache_key for sample in hard_samples}
+    regular_samples, regular_selection = select_regular_positives(
+        samples,
+        int(config["selection"]["regular_positive_count"]),
+        hard_keys,
+    )
     negative_samples, negative_selection = select_challenging_negatives(
         samples,
         int(config["selection"]["negative_count"]),
@@ -294,7 +294,7 @@ def main() -> None:
         },
         "dataset_summary": dataset_report,
         "selection": {
-            "general": general_selection,
+            "regular_positive": regular_selection,
             "hard_positive": hard_selection,
             "hard_negative": negative_selection,
             "selected_by_group": {group: len(items) for group, items in grouped_samples.items()},

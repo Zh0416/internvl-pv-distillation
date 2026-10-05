@@ -22,6 +22,32 @@ def _take_evenly(items: list[Sample], count: int) -> list[Sample]:
     return [items[index] for index in indexes]
 
 
+def select_regular_positives(
+    samples: list[Sample],
+    count: int,
+    excluded_keys: set[str] | None = None,
+) -> tuple[list[Sample], dict]:
+    excluded_keys = excluded_keys or set()
+    positives = sorted(
+        (
+            sample
+            for sample in samples
+            if sample.is_positive and sample.cache_key not in excluded_keys
+        ),
+        key=lambda sample: sample.pv_ratio,
+    )
+    selected = _take_evenly(positives, count)
+    if len(selected) < count:
+        raise RuntimeError(f"常规正样本不足: requested={count}, found={len(selected)}")
+    return selected, {
+        "requested": count,
+        "available_after_exclusion": len(positives),
+        "excluded_count": len(excluded_keys),
+        "selected_count": len(selected),
+        "selected": [sample_to_dict(sample) for sample in selected],
+    }
+
+
 def select_distillation_subset(samples: list[Sample], config: dict) -> tuple[list[Sample], dict]:
     selection_cfg = config.get("selection", {})
     rng = np.random.default_rng(int(config["seed"]))

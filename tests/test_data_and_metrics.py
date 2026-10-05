@@ -11,7 +11,7 @@ from src.data.dataset import inspect_dataset
 from src.data.crops import fixed_negative_crop_boxes, largest_component, square_crop_box
 from src.data.confusers import score_pv_confuser, select_challenging_negatives
 from src.data.hard_samples import mask_geometry
-from src.data.selection import select_distillation_subset
+from src.data.selection import select_distillation_subset, select_regular_positives
 from src.data.split_dataset import create_splits
 from src.teacher.semantic_extractor import parse_semantic_response
 from src.utils.metrics import binary_classification_metrics
@@ -96,6 +96,19 @@ class DataAndMetricsTest(unittest.TestCase):
         parsed = parse_semantic_response('{"pv_exists": "false", "confidence": 80, "reason": "none"}')
         self.assertFalse(parsed["pv_exists"])
         self.assertEqual(parsed["confidence"], 0.8)
+
+    def test_regular_positive_selection_excludes_hard_samples(self) -> None:
+        _, samples, _ = inspect_dataset(self.config)
+        positives = sorted(
+            (sample for sample in samples if sample.is_positive),
+            key=lambda sample: sample.pv_ratio,
+        )
+        hard_keys = {positives[0].cache_key}
+        selected, report = select_regular_positives(samples, 2, hard_keys)
+        self.assertEqual(len(selected), 2)
+        self.assertTrue(hard_keys.isdisjoint(sample.cache_key for sample in selected))
+        self.assertEqual(report["excluded_count"], 1)
+        self.assertEqual(report["selected_count"], 2)
 
     def test_hard_crop_geometry(self) -> None:
         mask = np.zeros((32, 32), dtype=np.uint8)
