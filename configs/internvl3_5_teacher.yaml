@@ -34,7 +34,7 @@ teacher:
     请严格按照以下JSON格式回答：
     {
       "pv_exists": true/false,
-      "confidence": 0-100,
+      "pv_probability": 0-100,
       "reason": "简要描述判断依据"
     }
 

@@ -93,9 +93,14 @@ class DataAndMetricsTest(unittest.TestCase):
         self.assertEqual(metrics["recall"], 0.5)
         self.assertEqual(metrics["f1"], 0.5)
         self.assertEqual(metrics["iou"], 1 / 3)
-        parsed = parse_semantic_response('{"pv_exists": "false", "confidence": 80, "reason": "none"}')
+        legacy = parse_semantic_response('{"pv_exists": "false", "confidence": 80, "reason": "none"}')
+        self.assertFalse(legacy["pv_exists"])
+        self.assertEqual(legacy["confidence"], 0.8)
+        self.assertAlmostEqual(legacy["pv_probability"], 0.2)
+        parsed = parse_semantic_response('{"pv_exists": false, "pv_probability": 20, "reason": "none"}')
         self.assertFalse(parsed["pv_exists"])
         self.assertEqual(parsed["confidence"], 0.8)
+        self.assertEqual(parsed["pv_probability"], 0.2)
 
     def test_regular_positive_selection_excludes_hard_samples(self) -> None:
         _, samples, _ = inspect_dataset(self.config)
@@ -104,11 +109,12 @@ class DataAndMetricsTest(unittest.TestCase):
             key=lambda sample: sample.pv_ratio,
         )
         hard_keys = {positives[0].cache_key}
-        selected, report = select_regular_positives(samples, 2, hard_keys)
+        selected, report = select_regular_positives(samples, 2, hard_keys, positives[0].pv_ratio)
         self.assertEqual(len(selected), 2)
         self.assertTrue(hard_keys.isdisjoint(sample.cache_key for sample in selected))
         self.assertEqual(report["excluded_count"], 1)
         self.assertEqual(report["selected_count"], 2)
+        self.assertTrue(all(sample.pv_ratio > positives[0].pv_ratio for sample in selected))
 
     def test_hard_crop_geometry(self) -> None:
         mask = np.zeros((32, 32), dtype=np.uint8)

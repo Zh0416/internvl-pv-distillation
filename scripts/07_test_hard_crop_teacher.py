@@ -37,11 +37,6 @@ def _apply_overrides(config: dict, values: list[str], output_dir: str | None) ->
         config["runtime"]["output_dir"] = str(output_path)
 
 
-def _pv_probability(semantic: dict) -> float:
-    confidence = float(semantic["confidence"])
-    return confidence if semantic["pv_exists"] else 1.0 - confidence
-
-
 def _run_view(
     bundle,
     teacher_config: dict,
@@ -75,7 +70,7 @@ def _run_view(
         "feature": feature_stats,
         "feature_path": str(feature_path) if feature_path else None,
         "semantic": semantic,
-        "pv_probability": _pv_probability(semantic),
+        "pv_probability": float(semantic["pv_probability"]),
         "prediction": bool(semantic["pv_exists"]),
     }
     atomic_json_dump(view, semantic_dir / f"{view_key}.json")
@@ -116,6 +111,7 @@ def main() -> None:
         samples,
         int(config["selection"]["regular_positive_count"]),
         hard_keys,
+        max(sample.pv_ratio for sample in hard_samples),
     )
     negative_samples, negative_selection = select_challenging_negatives(
         samples,

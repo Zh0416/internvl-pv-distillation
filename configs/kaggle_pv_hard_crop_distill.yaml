@@ -58,7 +58,7 @@ teacher:
     只输出严格JSON，不要使用Markdown：
     {
       "pv_exists": true/false,
-      "confidence": 0-100,
+      "pv_probability": 0-100,
       "reason": "简要说明局部视觉依据"
     }
   full_prompt: *full_prompt
@@ -72,7 +72,7 @@ teacher:
     只输出严格JSON，不要使用Markdown：
     {
       "pv_exists": true/false,
-      "confidence": 0-100,
+      "pv_probability": 0-100,
       "reason": "简要说明局部视觉依据"
     }
   max_new_tokens: 128

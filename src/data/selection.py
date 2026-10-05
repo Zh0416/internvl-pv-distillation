@@ -26,13 +26,16 @@ def select_regular_positives(
     samples: list[Sample],
     count: int,
     excluded_keys: set[str] | None = None,
+    min_pv_ratio_exclusive: float = 0.0,
 ) -> tuple[list[Sample], dict]:
     excluded_keys = excluded_keys or set()
     positives = sorted(
         (
             sample
             for sample in samples
-            if sample.is_positive and sample.cache_key not in excluded_keys
+            if sample.is_positive
+            and sample.cache_key not in excluded_keys
+            and sample.pv_ratio > min_pv_ratio_exclusive
         ),
         key=lambda sample: sample.pv_ratio,
     )
@@ -43,6 +46,7 @@ def select_regular_positives(
         "requested": count,
         "available_after_exclusion": len(positives),
         "excluded_count": len(excluded_keys),
+        "min_pv_ratio_exclusive": min_pv_ratio_exclusive,
         "selected_count": len(selected),
         "selected": [sample_to_dict(sample) for sample in selected],
     }
