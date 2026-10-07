@@ -5,14 +5,17 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import torch
 from PIL import Image
 
 from src.data.dataset import inspect_dataset
 from src.data.crops import fixed_negative_crop_boxes, largest_component, square_crop_box
 from src.data.confusers import score_pv_confuser, select_challenging_negatives
 from src.data.hard_samples import mask_geometry
+from src.data.pilot import build_pilot_splits
 from src.data.selection import select_distillation_subset, select_regular_positives
 from src.data.split_dataset import create_splits
+from src.student.pilot import distillation_losses, segmentation_loss
 from src.teacher.semantic_extractor import parse_semantic_response
 from src.utils.metrics import binary_classification_metrics
 
@@ -141,6 +144,58 @@ class DataAndMetricsTest(unittest.TestCase):
         selected, report = select_challenging_negatives(samples, 2)
         self.assertEqual(len(selected), 2)
         self.assertEqual(report["requested"], 2)
+
+    def test_pilot_splits_are_disjoint(self) -> None:
+        _, samples, _ = inspect_dataset(self.config)
+        config = dict(self.config)
+        config["hard_crop"] = {
+            "min_mask_pixels": 1,
+            "exclude_border_touching": False,
+            "min_border_margin": 0,
+        }
+        config["pilot"] = {
+            "fixed_test": {
+                "regular_positive": [],
+                "hard_positive": ["pv4026__PV_1"],
+                "hard_negative": ["pv100f__NEG_0"],
+            },
+            "counts": {
+                "train": {"regular_positive": 1, "hard_positive": 1, "hard_negative": 1},
+                "validation": {"regular_positive": 0, "hard_positive": 1, "hard_negative": 1},
+                "test": {"regular_positive": 0, "hard_positive": 1, "hard_negative": 1},
+            },
+            "sample_weights": {
+                "regular_positive": 1.0,
+                "hard_positive": 1.5,
+                "hard_negative": 2.0,
+            },
+        }
+        splits, manifest = build_pilot_splits(samples, config)
+        keys = [sample.cache_key for values in splits.values() for sample in values]
+        self.assertEqual(len(keys), 7)
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(manifest["counts"]["train"]["regular_positive"], 1)
+
+    def test_student_losses_are_finite(self) -> None:
+        logits = torch.zeros((2, 1, 8, 8), requires_grad=True)
+        masks = torch.zeros((2, 1, 8, 8))
+        masks[0, :, 2:4, 2:4] = 1.0
+        sample_weights = torch.tensor([1.5, 2.0])
+        segmentation, _ = segmentation_loss(logits, masks, sample_weights, 0.6, 0.4)
+        output = {
+            "presence_logits": torch.zeros(2, requires_grad=True),
+            "adapted_feature": torch.ones((2, 4), requires_grad=True),
+        }
+        batch = {
+            "teacher_probability": torch.tensor([0.9, 0.1]),
+            "semantic_weight": torch.tensor([1.0, 0.0]),
+            "sample_weight": sample_weights,
+            "teacher_feature": torch.ones((2, 4)),
+        }
+        semantic, feature = distillation_losses(output, batch)
+        total = segmentation + semantic + feature
+        total.backward()
+        self.assertTrue(torch.isfinite(total))
 
 
 if __name__ == "__main__":

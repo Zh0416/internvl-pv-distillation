@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -25,40 +24,26 @@ class CropMetadata:
 
 
 def largest_component(mask_path: str | Path) -> ComponentStats:
+    from scipy import ndimage
+
     with Image.open(mask_path) as mask:
         array = np.asarray(mask)
     if array.ndim == 3:
         array = array[..., 0]
     foreground = array > 0
-    coordinates = {tuple(map(int, item)) for item in np.argwhere(foreground)}
-    if not coordinates:
+    if not foreground.any():
         raise ValueError(f"掩膜没有前景像素: {mask_path}")
-
-    largest: list[tuple[int, int]] = []
-    component_count = 0
-    while coordinates:
-        component_count += 1
-        start = coordinates.pop()
-        queue = deque([start])
-        component = [start]
-        while queue:
-            row, column = queue.popleft()
-            for row_offset in (-1, 0, 1):
-                for column_offset in (-1, 0, 1):
-                    if row_offset == 0 and column_offset == 0:
-                        continue
-                    neighbor = (row + row_offset, column + column_offset)
-                    if neighbor in coordinates:
-                        coordinates.remove(neighbor)
-                        queue.append(neighbor)
-                        component.append(neighbor)
-        if len(component) > len(largest):
-            largest = component
-
-    rows = [item[0] for item in largest]
-    columns = [item[1] for item in largest]
-    bbox = (min(columns), min(rows), max(columns) + 1, max(rows) + 1)
-    return ComponentStats(bbox=bbox, pixels=len(largest), component_count=component_count)
+    labels, component_count = ndimage.label(foreground, structure=np.ones((3, 3), dtype=np.uint8))
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    largest_label = int(sizes.argmax())
+    rows, columns = np.where(labels == largest_label)
+    bbox = (int(columns.min()), int(rows.min()), int(columns.max()) + 1, int(rows.max()) + 1)
+    return ComponentStats(
+        bbox=bbox,
+        pixels=int(sizes[largest_label]),
+        component_count=int(component_count),
+    )
 
 
 def square_crop_box(

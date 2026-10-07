@@ -114,3 +114,19 @@ python scripts/save_teacher_cache.py --input outputs/teacher_cache --output-dir 
 50 张 Teacher 门槛测试使用 20 张普通正样本、15 张主要目标组件距切片边缘至少 32 像素的低覆盖正样本，以及 15 张按规则强边缘特征排序的易混淆负样本。普通正样本仅从覆盖率高于困难组上限的候选中均匀取样，并明确排除已选的困难正样本，保证三组互斥。Teacher 输出的 `pv_probability` 始终表示“存在光伏”的概率，避免负样本软标签反转。报告同时给出完整影像指标、困难正样本掩膜引导裁剪指标和固定负样本局部视图误报率。掩膜引导裁剪只用于训练期 Teacher 知识提取，不能用于部署推理。
 
 有效困难目标使用至少 96×96 的正方形 crop，并按目标包围盒较长边的 2 倍保留上下文，再由 InternVL 放大到 448 输入。这样既保留道路、屋顶等负上下文，也避免 crop 重新退化成 512×512 整图。
+
+## SegFormer-B0 Pilot 蒸馏
+
+Pilot 使用 `configs/kaggle_pv_pilot_distill.yaml`，严格固定第 9 版 Teacher 门槛测试的 50 张影像，再构造互斥的 470 张训练集和 75 张验证集。执行顺序：
+
+```bash
+python scripts/08_prepare_pilot_manifest.py --config configs/kaggle_pv_pilot_distill.yaml
+python scripts/09_extract_pilot_teacher.py --config configs/kaggle_pv_pilot_distill.yaml
+python scripts/10_train_pilot_student.py --config configs/kaggle_pv_pilot_distill.yaml --variant baseline
+python scripts/10_train_pilot_student.py --config configs/kaggle_pv_pilot_distill.yaml --variant kd
+python scripts/11_compare_pilot.py
+```
+
+Student 是 `nvidia/segformer-b0-finetuned-ade-512-512`，主头使用真实二值掩膜的 Focal + Dice 监督，辅助存在性头使用真实图像级标签。KD 版额外接收 InternVL `pv_probability` 和全局视觉特征；Teacher 布尔判断与真实标签冲突时，该样本的语义蒸馏权重自动置零。Teacher 缓存按样本原子保存，重跑时会跳过已完成项。
+
+Baseline 和 KD 使用相同划分、随机种子、数据增强、优化器和训练轮数。最终比较报告是 `outputs/reports/pilot_comparison.json`，同时给出整体、普通正样本、困难正样本和困难负样本的像素级指标以及图像级存在性指标。
