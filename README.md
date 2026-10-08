@@ -130,3 +130,11 @@ python scripts/11_compare_pilot.py
 Student 是 `nvidia/segformer-b0-finetuned-ade-512-512`，主头使用真实二值掩膜的 Focal + Dice 监督，辅助存在性头使用真实图像级标签。KD 版额外接收 InternVL `pv_probability` 和全局视觉特征；Teacher 布尔判断与真实标签冲突时，该样本的语义蒸馏权重自动置零。Teacher 缓存按样本原子保存，重跑时会跳过已完成项。
 
 Baseline 和 KD 使用相同划分、随机种子、数据增强、优化器和训练轮数。最终比较报告是 `outputs/reports/pilot_comparison.json`，同时给出整体、普通正样本、困难正样本和困难负样本的像素级指标以及图像级存在性指标。
+
+## 第二轮困难正样本消融
+
+第 10 版的 15 张困难正样本已经用于错误审查，因此固定 50 张测试集可用于版本对照，但不再是完全盲测。`PV100F` 共 100 张且已全部进入原 Pilot 划分；若需要新的独立负样本测试集，必须另行提供负样本或重新预留划分。第二轮保持原 595 张互斥划分不变，只用 75 张验证集选择训练设置和阈值，直到最终候选选定后才评估固定 50 张测试集。
+
+第二轮以 12 epoch 训练三个监督模型：原采样权重的 `reference`、困难正样本权重 2.5 的 `hard_weight`、正像素 Focal 权重 2.0 的 `positive_weight`。选出验证集困难正样本 Dice 最优且困难负样本无误报、困难正样本 Recall 与总体 Dice 不明显退化的 Baseline。然后在相同监督设置下比较语义 KD 0.1、特征 KD 0.05、两者联合三个方案。Teacher 对困难正样本使用掩膜引导局部裁剪；第二轮把 Student 蒸馏特征池化到相应裁剪区域，并随训练增强变换裁剪框。Teacher 与标签判断冲突的样本不参与语义或特征 KD。部署推理仍只输入整张影像，不使用掩膜裁剪。
+
+`scripts/10_train_pilot_student.py` 的 `--defer-test` 保证训练阶段不触碰测试集；`--evaluate-only --thresholds 0.3,0.4,0.5,0.6` 扫描验证集阈值。`scripts/12_select_round2.py` 从验证集选择候选，并在最终测试后输出 `round2_selection.json`。验收要求困难正样本测试 Dice 和 IoU 均比第二轮 Baseline 至少高 0.02，Recall 不下降，困难负样本误报像素为零。单次 50 张测试集样本数有限，验收通过后仍需要多随机种子及新独立负样本复验。

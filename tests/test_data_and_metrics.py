@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import json
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -15,7 +17,7 @@ from src.data.hard_samples import mask_geometry
 from src.data.pilot import build_pilot_splits
 from src.data.selection import select_distillation_subset, select_regular_positives
 from src.data.split_dataset import create_splits
-from src.student.pilot import distillation_losses, segmentation_loss
+from src.student.pilot import PilotDataset, distillation_losses, pool_teacher_view_features, segmentation_loss
 from src.teacher.semantic_extractor import parse_semantic_response
 from src.utils.metrics import binary_classification_metrics
 
@@ -196,6 +198,59 @@ class DataAndMetricsTest(unittest.TestCase):
         total = segmentation + semantic + feature
         total.backward()
         self.assertTrue(torch.isfinite(total))
+
+    def test_positive_pixel_weight_increases_positive_loss(self) -> None:
+        logits = torch.zeros((1, 1, 8, 8))
+        masks = torch.zeros_like(logits)
+        masks[0, 0, 2:4, 2:4] = 1
+        weights = torch.ones(1)
+        regular, _ = segmentation_loss(logits, masks, weights, 1.0, 0.0)
+        emphasized, _ = segmentation_loss(logits, masks, weights, 1.0, 0.0, 2.0)
+        self.assertGreater(emphasized.item(), regular.item())
+
+    def test_teacher_crop_tracks_augmentation_and_local_pooling(self) -> None:
+        cache_dir = Path(self.temp_dir.name) / "teacher_cache"
+        (cache_dir / "semantic").mkdir(parents=True)
+        (cache_dir / "features").mkdir()
+        key = "pv4026__PV_1"
+        (cache_dir / "semantic" / f"{key}.json").write_text(
+            json.dumps({"crop": {"crop_box": [1, 2, 4, 5]}, "semantic": {"pv_probability": 0.9}, "semantic_weight": 1.0}),
+            encoding="utf-8",
+        )
+        torch.save(torch.ones(4), cache_dir / "features" / f"{key}.pt")
+        row = {
+            "image_path": str(self.positive_root / "images" / "PV_1.tif"),
+            "mask_path": str(self.positive_root / "labels" / "PV_1.tif"),
+            "is_positive": True,
+            "sample_weight": 1.0,
+            "cache_key": key,
+            "selection_group": "hard_positive",
+        }
+        dataset = PilotDataset([row], 8, augment=True, teacher_cache_dir=cache_dir)
+        with patch("src.student.pilot.random.random", side_effect=[0.0, 1.0]), patch(
+            "src.student.pilot.random.randrange", return_value=1
+        ):
+            sample = dataset[0]
+        self.assertEqual(sample["teacher_crop_box"].tolist(), [2, 1, 5, 4])
+        feature_map = torch.arange(16, dtype=torch.float32).view(1, 1, 4, 4)
+        pooled = pool_teacher_view_features(feature_map, torch.tensor([[2, 0, 6, 4]]), (8, 8))
+        self.assertAlmostEqual(pooled.item(), 3.5)
+
+    def test_feature_gate_ignores_teacher_disagreement(self) -> None:
+        output = {
+            "presence_logits": torch.zeros(2),
+            "adapted_feature": torch.tensor([[1.0, 0.0], [0.0, 1.0]]),
+        }
+        batch = {
+            "teacher_probability": torch.tensor([0.9, 0.1]),
+            "semantic_weight": torch.tensor([1.0, 0.0]),
+            "sample_weight": torch.ones(2),
+            "teacher_feature": torch.tensor([[1.0, 0.0], [1.0, 0.0]]),
+        }
+        _, ungated = distillation_losses(output, batch)
+        _, gated = distillation_losses(output, batch, feature_agreement_only=True)
+        self.assertGreater(ungated.item(), gated.item())
+        self.assertAlmostEqual(gated.item(), 0.0)
 
 
 if __name__ == "__main__":

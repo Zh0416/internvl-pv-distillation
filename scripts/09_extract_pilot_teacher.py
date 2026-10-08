@@ -46,8 +46,14 @@ def _teacher_view(row: dict, config: dict, crop_dir: Path) -> tuple[Path, str, d
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/kaggle_pv_pilot_distill.yaml")
+    parser.add_argument("--output-dir", default=None)
     args = parser.parse_args()
     config = load_config(args.config)
+    if args.output_dir:
+        override_dir = Path(args.output_dir)
+        if not override_dir.is_absolute():
+            raise ValueError(f"输出路径必须是绝对路径: {override_dir}")
+        config["runtime"]["output_dir"] = str(override_dir)
     seed_everything(int(config["seed"]))
     output_dir = Path(config["runtime"]["output_dir"])
     manifest_path = output_dir / "reports" / "pilot_manifest.json"
