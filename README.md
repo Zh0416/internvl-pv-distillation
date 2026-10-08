@@ -138,3 +138,5 @@ Baseline 和 KD 使用相同划分、随机种子、数据增强、优化器和�
 第二轮以 12 epoch 训练三个监督模型：原采样权重的 `reference`、困难正样本权重 2.5 的 `hard_weight`、正像素 Focal 权重 2.0 的 `positive_weight`。选出验证集困难正样本 Dice 最优且困难负样本无误报、困难正样本 Recall 与总体 Dice 不明显退化的 Baseline。然后在相同监督设置下比较语义 KD 0.1、特征 KD 0.05、两者联合三个方案。Teacher 对困难正样本使用掩膜引导局部裁剪；第二轮把 Student 蒸馏特征池化到相应裁剪区域，并随训练增强变换裁剪框。Teacher 与标签判断冲突的样本不参与语义或特征 KD。部署推理仍只输入整张影像，不使用掩膜裁剪。
 
 `scripts/10_train_pilot_student.py` 的 `--defer-test` 保证训练阶段不触碰测试集；`--evaluate-only --thresholds 0.3,0.4,0.5,0.6` 扫描验证集阈值。`scripts/12_select_round2.py` 从验证集选择候选，并在最终测试后输出 `round2_selection.json`。验收要求困难正样本测试 Dice 和 IoU 均比第二轮 Baseline 至少高 0.02，Recall 不下降，困难负样本误报像素为零。单次 50 张测试集样本数有限，验收通过后仍需要多随机种子及新独立负样本复验。
+
+第 11 版在约 12 小时后由 Kaggle 报 `ERROR`，但 API 没有提供执行日志或阶段产物，因此只能确认本次执行超出可观察的运行窗口，不能认定是哪一个步骤卡住。后续 notebook 对 GitHub 克隆、依赖安装及每个实验阶段设置独立超时，记录 `round2_outputs/reports/round2_execution_status.json` 和逐阶段日志。Teacher 提取每张影像前也先写入日志，便于下一次在单个样本耗时异常时定位；这些防护不会改变训练数据或模型配置。第 11 版未留下可复用的 Teacher 缓存，不能把它当作已完成实验。

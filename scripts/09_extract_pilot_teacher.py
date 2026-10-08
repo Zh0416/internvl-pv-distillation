@@ -77,6 +77,7 @@ def main() -> None:
     for index, row in enumerate(train_rows, 1):
         feature_path = feature_dir / f"{row['cache_key']}.pt"
         semantic_path = semantic_dir / f"{row['cache_key']}.json"
+        logger.info("[%d/%d] start %s", index, len(train_rows), row["cache_key"])
         if feature_path.is_file() and semantic_path.is_file():
             results.append(json.loads(semantic_path.read_text(encoding="utf-8")))
             logger.info("[%d/%d] resume %s", index, len(train_rows), row["cache_key"])
