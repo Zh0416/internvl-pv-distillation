@@ -47,6 +47,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/kaggle_pv_pilot_distill.yaml")
     parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--max-samples", type=int, default=None)
     args = parser.parse_args()
     config = load_config(args.config)
     if args.output_dir:
@@ -61,6 +62,10 @@ def main() -> None:
         raise FileNotFoundError(f"未找到Pilot清单: {manifest_path}")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     train_rows = manifest["splits"]["train"]
+    if args.max_samples is not None:
+        if args.max_samples <= 0:
+            raise ValueError("--max-samples必须为正数")
+        train_rows = train_rows[:args.max_samples]
     cache_dir = output_dir / "pilot_teacher_cache"
     feature_dir = cache_dir / "features"
     semantic_dir = cache_dir / "semantic"
